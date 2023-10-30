@@ -35,7 +35,7 @@ struct main_node {
 struct main_node* main_head = NULL;
 
 void initializing_main_node(struct main_node* node) {
-    // node->size = PAGE_SIZE;
+    node->size = PAGE_SIZE;
     node->next = NULL;
     node->prev = NULL;
     struct sub_node* sub_head = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -110,10 +110,14 @@ void print_main_node(struct main_node* node) {
 int search_free_list(size_t size) {
     printf("Welcome to search_free_list\n");
     struct main_node* temp = main_head;
-    printf("%p\n", main_head);
+    printf("temp: %p\n", temp);
+    printf("%p",main_head->address_in_PA);
+    printf("%p",temp->address_in_PA);
     while (temp != NULL) { // Iterate through the main_node linked list
+        printf("%p",temp->address_in_PA);
+        print_main_node(temp);
         struct sub_node* temp2 = temp->sub_head; // Start with the sub_head of the current main_node
-        
+        printf("Checker3\n");
         while (temp2 != NULL) { // Iterate through the sub_node linked list
             if (temp2->type == 0 && temp2->size >= size) {
                 printf("Checker4\n");
