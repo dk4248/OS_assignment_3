@@ -34,8 +34,8 @@ struct main_node {
 
 struct main_node* main_head = NULL;
 
-void initializing_main_node(struct main_node* node) {
-    node->size = PAGE_SIZE;
+void initializing_main_node(struct main_node* node , size_t size) {
+    node->size = size;
     node->next = NULL;
     node->prev = NULL;
     struct sub_node* sub_head = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -43,7 +43,7 @@ void initializing_main_node(struct main_node* node) {
     node->no_of_process = 0;
     node->no_of_holes = 1;
     node->holes_size = PAGE_SIZE;
-    node->address_in_PA = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    node->address_in_PA = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     sub_head->size = PAGE_SIZE;
     sub_head->next = NULL;
     sub_head->prev = NULL;
@@ -55,7 +55,7 @@ void initializing_main_node(struct main_node* node) {
 
 void mems_init() {
     main_head = (struct main_node*)mmap(NULL, sizeof(struct main_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    initializing_main_node(main_head);
+    initializing_main_node(main_head, PAGE_SIZE);
     printf("%p\n", main_head);
 }
 
@@ -126,52 +126,56 @@ int search_free_list(size_t size) {
 void* mems_malloc(size_t size){
     // if the user wants a size which is not present in the free list then we will use mmap and create a new main node
     if(search_free_list(size)){
-        printf("Size is available in the free list\n");
+        // printf("Size is available in the free list\n");
         // printf("%d\n",search_free_list(size));
         // now allocate that node to the user
         struct main_node* temp = main_head;
         struct sub_node* temp2 = temp->sub_head;
+        // printf("Checker2\n");
         while(temp!=NULL){
             temp2 = temp->sub_head;
-        while(temp2!=NULL){
-            if(temp2->type==0 && temp2->size>size){
-                // now we will create a new sub node for the process
-                struct sub_node* process = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-                process->size = size;
-                process->next = NULL;
-                process->prev = temp2;
-                process->starting_address = temp2->ending_address - size + 1;
-                process->ending_address = temp2->ending_address;
-                temp2->ending_address = process->starting_address - 1;
-                // now we will add process node to the end of the sub chain
-                struct sub_node* temp3 = temp->sub_head;
-                int n = 1;
-                while(temp3->next!=NULL){
-                    temp3 = temp3->next;
-                    n++;
+                while(temp2!=NULL){
+                    if(temp2->type==0 && temp2->size>size){
+                        // printf("Size of main node %ld\n",temp->size);
+                        // printf("Checker\n");
+                        // now we will create a new sub node for the process
+                        struct sub_node* process = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                        process->size = size;
+                        process->next = NULL;
+                        process->prev = temp2;
+                        process->starting_address = temp2->ending_address - size + 1;
+                        process->ending_address = temp2->ending_address;
+                        temp2->ending_address = process->starting_address - 1;
+                        // now we will add process node to the end of the sub chain
+                        struct sub_node* temp3 = temp->sub_head;
+                        int n = 1;
+                        while(temp3->next!=NULL){
+                            temp3 = temp3->next;
+                            n++;
+                        }
+                        temp3->next = process;
+                        temp->no_of_process++;
+                        // temp->no_of_holes;
+                        temp->holes_size = temp->holes_size - size;
+                        process->type = 1;
+                        process->n = n+1;
+                        temp2->size = temp2->size - size;
+                        return process->starting_address;
+                    }
+                    if(temp2->type==0 && temp2->size==size){
+                        // simply chaneg the node to a process node
+                        temp2->type = 1;
+                        temp->no_of_process++;
+                        temp->no_of_holes--;
+                        temp->holes_size = temp->holes_size - size;
+                        return temp2->starting_address;
+                    }
+                    temp2 = temp2->next;
                 }
-                temp3->next = process;
-                temp->no_of_process++;
-                temp->no_of_holes;
-                temp->holes_size = temp->holes_size - size;
-                process->type = 1;
-                process->n = n+1;
-                temp2->size = temp2->size - size;
-                return process->starting_address;
-            }
-            if(temp2->type==0 && temp2->size==size){
-                // simply chaneg the node to a process node
-                temp2->type = 1;
-                temp->no_of_process++;
-                temp->no_of_holes--;
-                temp->holes_size = temp->holes_size - size;
-                return temp2->starting_address;
-            }
-            temp2 = temp2->next;
-        }
+            temp = temp->next;
     }}
     else{
-        printf("Size is not available in the free list\n");
+        // printf("Size is not available in the free list\n");
         // create a new main node and allocate that node to the user
         // here there will be two cases
         // 1. if the size is less than PAGE_SIZE
@@ -181,19 +185,19 @@ void* mems_malloc(size_t size){
             temp = temp->next;
         }
         struct main_node* new_node = (struct main_node*)mmap(NULL, sizeof(struct main_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        initializing_main_node(new_node);
         temp->next = new_node;
         new_node->prev = temp;
         int no_of_pages = size/PAGE_SIZE;
-        if(size/PAGE_SIZE!=0){
-            no_of_pages++;
-        }
-        new_node->size = no_of_pages*PAGE_SIZE;
-        new_node->address_in_PA = mmap(NULL, new_node->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        no_of_pages++;
+        size_t size = no_of_pages*PAGE_SIZE;
+        // printf("Size: %ld\n",size);
+        initializing_main_node(new_node , size);
+        // new_node->address_in_PA = mmap(NULL, new_node->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if(new_node->address_in_PA==MAP_FAILED){
             printf("mmap failed\n");
             return NULL;
         }
+        // mems_print_stats();
         // now the head sub node will be a hole and a new sub node will be created for the process
         struct sub_node* process = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         // mems_print_stats();
@@ -229,6 +233,7 @@ Returns: Nothing but should print the necessary information on STDOUT
 void mems_print_stats(){
     struct main_node* temp = main_head;
     while (temp != NULL) {
+        printf("\n\n");
         printf("Main Node\n");
         printf("Address in PA: %p\n", temp->address_in_PA);
         printf("No of process: %d\n", temp->no_of_process);
@@ -236,6 +241,7 @@ void mems_print_stats(){
         printf("Holes size: %ld\n", temp->holes_size);
         struct sub_node* temp2 = temp->sub_head;
         while (temp2 != NULL) {
+            printf("\n");
             printf("Sub Node\n");
             printf("Sub Node no: %d\n",temp2->n);
             printf("Size: %ld\n", temp2->size);
@@ -319,7 +325,7 @@ int main(int argc, char const *argv[])
 
     /*
     This shows the stats of the MeMS system.  
-    */
+    // */
     printf("\n--------- Printing Stats [mems_print_stats] --------\n");
     mems_print_stats();
 
