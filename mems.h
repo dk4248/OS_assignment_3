@@ -56,7 +56,6 @@ void initializing_main_node(struct main_node* node , size_t size) {
 void mems_init() {
     main_head = (struct main_node*)mmap(NULL, sizeof(struct main_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     initializing_main_node(main_head, PAGE_SIZE);
-    printf("%p\n", main_head);
 }
 
 void mems_finish() {
