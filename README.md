@@ -71,9 +71,7 @@ Then,
 make run
 ```
 
-![Shocked Meme]
-(https://media.tenor.com/x3CxOR3B0CsAAAAd/shocked-meme-black-guy-jslutty.gif)
-
+![Shocked Meme](https://media.tenor.com/x3CxOR3B0CsAAAAd/shocked-meme-black-guy-jslutty.gif)
 
 And finally,
 
