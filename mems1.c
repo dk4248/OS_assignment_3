@@ -83,6 +83,7 @@ void mems_finish() {
         temp = temp->next;
         munmap(temp2, sizeof(struct main_node));
     }
+    printf("MeMS system is Finished\n");
 }
 
 
@@ -175,32 +176,19 @@ void* mems_malloc(size_t size){
             temp = temp->next;
     }}
     else{
-        // printf("Size is not available in the free list\n");
-        // create a new main node and allocate that node to the user
-        // here there will be two cases
-        // 1. if the size is less than PAGE_SIZE
-        // 2. if the size is greater than PAGE_SIZE
+        //the size user wants is not available in the free list
+        struct main_node* new_node = (struct main_node*)mmap(NULL, sizeof(struct main_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        int t = size/PAGE_SIZE;
+        t++;
+        size_t new_size = t*PAGE_SIZE;
+        initializing_main_node(new_node, new_size);
         struct main_node* temp = main_head;
         while(temp->next!=NULL){
             temp = temp->next;
         }
-        struct main_node* new_node = (struct main_node*)mmap(NULL, sizeof(struct main_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         temp->next = new_node;
         new_node->prev = temp;
-        int no_of_pages = size/PAGE_SIZE;
-        no_of_pages++;
-        size_t size = no_of_pages*PAGE_SIZE;
-        // printf("Size: %ld\n",size);
-        initializing_main_node(new_node , size);
-        // new_node->address_in_PA = mmap(NULL, new_node->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if(new_node->address_in_PA==MAP_FAILED){
-            printf("mmap failed\n");
-            return NULL;
-        }
-        // mems_print_stats();
-        // now the head sub node will be a hole and a new sub node will be created for the process
         struct sub_node* process = (struct sub_node*)mmap(NULL, sizeof(struct sub_node), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        // mems_print_stats();
         process->size = size;
         process->next = NULL;
         process->prev = new_node->sub_head;
@@ -208,11 +196,10 @@ void* mems_malloc(size_t size){
         process->ending_address = new_node->sub_head->ending_address;
         new_node->sub_head->ending_address = process->starting_address - 1;
         new_node->sub_head->next = process;
-        new_node->sub_head->type = 0;
-        new_node->sub_head->n = 1;
-        new_node->no_of_process = 1;
-        new_node->no_of_holes = 1;
-        new_node->holes_size = new_node->size - size;
+        new_node->no_of_process++;
+        new_node->sub_head->size = new_node->sub_head->size - size;
+        new_node->size = new_node->size - size;
+        new_node->holes_size = new_node->holes_size - size;
         process->type = 1;
         process->n = 2;
         return process->starting_address;
@@ -231,10 +218,11 @@ Parameter: Nothing
 Returns: Nothing but should print the necessary information on STDOUT
 */
 void mems_print_stats(){
+    int n = 1;
     struct main_node* temp = main_head;
     while (temp != NULL) {
         printf("\n\n");
-        printf("Main Node\n");
+        printf("Main Node %d\n",n);
         printf("Address in PA: %p\n", temp->address_in_PA);
         printf("No of process: %d\n", temp->no_of_process);
         printf("No of holes: %d\n", temp->no_of_holes);
@@ -247,9 +235,10 @@ void mems_print_stats(){
             printf("Size: %ld\n", temp2->size);
             printf("Starting Address: %p\n", temp2->starting_address);
             printf("Ending Address: %p\n", temp2->ending_address);
-            printf("Type: %d\n", temp2->type);
+            printf(temp2->type == 0 ? "Type: HOLE\n" : "Type: PROCESS\n");
             temp2 = temp2->next;
         }
+        n++;
         temp = temp->next;
     }
 }
@@ -260,13 +249,24 @@ Returns the MeMS physical address mapped to ptr ( ptr is MeMS virtual address).
 Parameter: MeMS Virtual address (that is created by MeMS)
 Returns: MeMS physical address mapped to the passed ptr (MeMS virtual address).
 // */
+
+void print_sub_node(struct sub_node* node) {
+    printf("Sub Node\n");
+    printf("Sub Node no: %d\n",node->n);
+    printf("Size: %ld\n", node->size);
+    printf("Starting Address: %p\n", node->starting_address);
+    printf("Ending Address: %p\n", node->ending_address);
+    printf("Type: %d\n", node->type);
+}
+
 void *mems_get(void*v_ptr){
     // here we will check if the v_ptr is in the main chain or not
     struct main_node* temp = main_head;
     while(temp->next!=NULL){
         struct sub_node* temp2 = temp->sub_head;
         while(temp2->next!=NULL){
-            if(temp2->starting_address<=v_ptr && temp2->ending_address>=v_ptr){
+            if(temp2->starting_address<=v_ptr && temp2->ending_address>v_ptr){
+                print_sub_node(temp2);
                 return v_ptr;
             }
             temp2 = temp2->next;
@@ -282,18 +282,66 @@ this function free up the memory pointed by our virtual_address and add it to th
 Parameter: MeMS Virtual address (that is created by MeMS) 
 Returns: nothing
 */
-void mems_free(void *v_ptr){
-    
-    
+
+void merge_holes(struct main_node* node) {
+    struct sub_node* temp = node->sub_head;
+    while (temp != NULL && temp->next != NULL) {
+        if (temp->type == 0 && temp->next->type == 0) {
+            // Merge the two holes
+            temp->size += temp->next->size;
+            temp->next = temp->next->next;
+
+            if (temp->next != NULL) {
+                temp->next->prev = temp;
+            }
+
+            node->no_of_holes--;
+            temp->ending_address = temp->next->ending_address;
+            munmap(temp->next, sizeof(struct sub_node));
+            
+            // Update the n of all the sub nodes after the deleted node
+            struct sub_node* temp2 = temp->next;
+            while (temp2 != NULL) {
+                temp2->n--;
+                temp2 = temp2->next;
+            }
+        }
+        temp = temp->next;
+    }
 }
+
+void mems_free(void *v_ptr) {
+    struct main_node* temp = main_head;
+    while (temp != NULL) {
+        struct sub_node* temp2 = temp->sub_head;
+        while (temp2 != NULL) {
+            if (temp2->starting_address == v_ptr) {
+                // Check if it was a process node
+                if (temp2->type == 1) {
+                    temp2->type = 0;
+                    temp->no_of_process--;
+                    temp->no_of_holes++;
+                    temp->holes_size += temp2->size;
+                    merge_holes(temp);
+                    return;
+                } else {
+                    printf("Error: The address is already a hole\n");
+                    return;
+                }
+            }
+            temp2 = temp2->next;
+        }
+        temp = temp->next;
+    }
+    printf("Error: The address is not in the MeMS system\n");
+}
+
 
 int main(int argc, char const *argv[])
 {
-    // initialise the MeMS system 
+    // Initialize the MeMS system
     mems_init();
     int* ptr[10];
-    printf("\n--------- Printing Stats [mems_print_stats] --------\n");
-    mems_print_stats();
 
     /*
     This allocates 10 arrays of 250 integers each
@@ -301,9 +349,6 @@ int main(int argc, char const *argv[])
     printf("\n------- Allocated virtual addresses [mems_malloc] -------\n");
     for(int i=0;i<10;i++){
         ptr[i] = (int*)mems_malloc(sizeof(int)*250);
-        // printf("\n\n");
-        // mems_print_stats();
-        // printf("\n\n");
         printf("Virtual address: %lu\n", (unsigned long)ptr[i]);
     }
 
@@ -315,17 +360,17 @@ int main(int argc, char const *argv[])
     This section is show that even if we have allocated an array using mems_malloc but we can 
     retrive MeMS physical address of any of the element from that array using mems_get. 
     */
-    // printf("\n------ Assigning value to Virtual address [mems_get] -----\n");
-    // // how to write to the virtual address of the MeMS (this is given to show that the system works on arrays as well)
-    // int* phy_ptr= (int*) mems_get(&ptr[0][1]); // get the address of index 1
-    // phy_ptr[0]=200; // put value at index 1
-    // int* phy_ptr2= (int*) mems_get(&ptr[0][0]); // get the address of index 0
-    // printf("Virtual address: %lu\tPhysical Address: %lu\n",(unsigned long)ptr[0],(unsigned long)phy_ptr2);
-    // printf("Value written: %d\n", phy_ptr2[1]); // print the address of index 1 
+    printf("\n------ Assigning value to Virtual address [mems_get] -----\n");
+    // how to write to the virtual address of the MeMS (this is given to show that the system works on arrays as well)
+    int* phy_ptr= (int*) mems_get(&ptr[0][1]); // get the address of index 1
+    phy_ptr[0]=200; // put value at index 1
+    int* phy_ptr2= (int*) mems_get(&ptr[0][0]); // get the address of index 0
+    printf("Virtual address: %lu\tPhysical Address: %lu\n",(unsigned long)ptr[0],(unsigned long)phy_ptr2);
+    printf("Value written: %d\n", phy_ptr2[1]); // print the address of index 1 
 
     /*
     This shows the stats of the MeMS system.  
-    // */
+    */
     printf("\n--------- Printing Stats [mems_print_stats] --------\n");
     mems_print_stats();
 
@@ -333,10 +378,14 @@ int main(int argc, char const *argv[])
     This section shows the effect of freeing up space on free list and also the effect of 
     reallocating the space that will be fullfilled by the free list.
     */
-    // printf("\n--------- Freeing up the memory [mems_free] --------\n");
-    // mems_free(ptr[3]);
-    // mems_print_stats();
-    // ptr[3] = (int*)mems_malloc(sizeof(int)*250);
-    // mems_print_stats();
+    printf("\n--------- Freeing up the memory [mems_free] --------\n");
+    mems_free(ptr[3]);
+    mems_print_stats();
+    ptr[3] = (int*)mems_malloc(sizeof(int)*250);
+    mems_print_stats();
+
+    mems_finish();
+
+    mems_print_stats();
     return 0;
 }
