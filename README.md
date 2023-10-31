@@ -68,7 +68,7 @@ $ make
 
 Then,
 ```
-make run
+$ make run
 ```
 
 ![Animated GIF](https://i.kym-cdn.com/photos/images/original/002/595/955/ac9.gif)
@@ -77,7 +77,7 @@ make run
 And finally,
 
 ```
-make clean
+$ make clean
 ```
 
 ![Dump Garbage](https://media.tenor.com/gOprzBYItkEAAAAd/dump-garbage.gif)
