@@ -22,7 +22,7 @@ struct sub_node {
 };
 
 struct main_node {
-    size_t size; // this is in multiples of PAGE_SIZE
+    size_t size;
     struct main_node* next;
     struct sub_node* sub_head;
     struct main_node* prev;
@@ -59,13 +59,6 @@ void mems_init() {
     printf("%p\n", main_head);
 }
 
-
-/*
-This function will be called at the end of the MeMS system and its main job is to unmap the 
-allocated memory using the munmap system call.
-Input Parameter: Nothing
-Returns: Nothing
-// */
 void mems_finish() {
     struct main_node* temp = main_head;
     while (temp != NULL) {
@@ -85,20 +78,6 @@ void mems_finish() {
     }
     printf("MeMS system is Finished\n");
 }
-
-
-/*
-Allocates memory of the specified size by reusing a segment from the free list if 
-a sufficiently large segment is available. 
-
-Else, uses the mmap system call to allocate more memory on the heap and updates 
-the free list accordingly.
-
-Note that while mapping using mmap do not forget to reuse the unused space from mapping
-by adding it to the free list.
-Parameter: The size of the memory the user program wants
-Returns: MeMS Virtual address (that is created by MeMS)
-*/ 
 
 // void print_main_node(struct main_node* node) {
 //     printf("Main Node\n");
@@ -206,17 +185,6 @@ void* mems_malloc(size_t size){
        }
 }
 
-
-
-
-/*
-this function print the stats of the MeMS system like
-1. How many pages are utilised by using the mems_malloc
-2. how much memory is unused i.e. the memory that is in freelist and is not used.
-3. It also prints details about each node in the main chain and each segment (PROCESS or HOLE) in the sub-chain.
-Parameter: Nothing
-Returns: Nothing but should print the necessary information on STDOUT
-*/
 void mems_print_stats(){
     int n = 1;
     struct main_node* temp = main_head;
@@ -243,13 +211,6 @@ void mems_print_stats(){
     }
 }
 
-
-/*
-Returns the MeMS physical address mapped to ptr ( ptr is MeMS virtual address).
-Parameter: MeMS Virtual address (that is created by MeMS)
-Returns: MeMS physical address mapped to the passed ptr (MeMS virtual address).
-// */
-
 void print_sub_node(struct sub_node* node) {
     printf("Sub Node\n");
     printf("Sub Node no: %d\n",node->n);
@@ -275,13 +236,6 @@ void *mems_get(void*v_ptr){
     }
     return NULL;
 }
-
-
-/*
-this function free up the memory pointed by our virtual_address and add it to the free list
-Parameter: MeMS Virtual address (that is created by MeMS) 
-Returns: nothing
-*/
 
 void merge_holes(struct main_node* node) {
     struct sub_node* temp = node->sub_head;
@@ -334,58 +288,4 @@ void mems_free(void *v_ptr) {
         temp = temp->next;
     }
     printf("Error: The address is not in the MeMS system\n");
-}
-
-
-int main(int argc, char const *argv[])
-{
-    // Initialize the MeMS system
-    mems_init();
-    int* ptr[10];
-
-    /*
-    This allocates 10 arrays of 250 integers each
-    */
-    printf("\n------- Allocated virtual addresses [mems_malloc] -------\n");
-    for(int i=0;i<10;i++){
-        ptr[i] = (int*)mems_malloc(sizeof(int)*250);
-        printf("Virtual address: %lu\n", (unsigned long)ptr[i]);
-    }
-
-    /*
-    In this section we are tring to write value to 1st index of array[0] (here it is 0 based indexing).
-    We get get value of both the 0th index and 1st index of array[0] by using function mems_get.
-    Then we write value to 1st index using 1st index pointer and try to access it via 0th index pointer.
-
-    This section is show that even if we have allocated an array using mems_malloc but we can 
-    retrive MeMS physical address of any of the element from that array using mems_get. 
-    */
-    printf("\n------ Assigning value to Virtual address [mems_get] -----\n");
-    // how to write to the virtual address of the MeMS (this is given to show that the system works on arrays as well)
-    int* phy_ptr= (int*) mems_get(&ptr[0][1]); // get the address of index 1
-    phy_ptr[0]=200; // put value at index 1
-    int* phy_ptr2= (int*) mems_get(&ptr[0][0]); // get the address of index 0
-    printf("Virtual address: %lu\tPhysical Address: %lu\n",(unsigned long)ptr[0],(unsigned long)phy_ptr2);
-    printf("Value written: %d\n", phy_ptr2[1]); // print the address of index 1 
-
-    /*
-    This shows the stats of the MeMS system.  
-    */
-    printf("\n--------- Printing Stats [mems_print_stats] --------\n");
-    mems_print_stats();
-
-    /*
-    This section shows the effect of freeing up space on free list and also the effect of 
-    reallocating the space that will be fullfilled by the free list.
-    */
-    printf("\n--------- Freeing up the memory [mems_free] --------\n");
-    mems_free(ptr[3]);
-    mems_print_stats();
-    ptr[3] = (int*)mems_malloc(sizeof(int)*250);
-    mems_print_stats();
-
-    mems_finish();
-
-    mems_print_stats();
-    return 0;
 }
