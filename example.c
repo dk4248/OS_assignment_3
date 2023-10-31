@@ -32,7 +32,7 @@ int main(int argc, char const *argv[])
     int* phy_ptr2= (int*) mems_get(&ptr[0][0]); // get the address of index 0
     printf("Virtual address: %lu\tPhysical Address: %lu\n",(unsigned long)ptr[0],(unsigned long)phy_ptr2);
     printf("Value written: %d\n", phy_ptr2[1]); // print the address of index 1 
-
+    
     /*
     This shows the stats of the MeMS system.  
     */
@@ -43,10 +43,15 @@ int main(int argc, char const *argv[])
     This section shows the effect of freeing up space on free list and also the effect of 
     reallocating the space that will be fullfilled by the free list.
     */
-    printf("\n--------- Freeing up the memory [mems_free] --------\n");
-    mems_free(ptr[3]);
-    mems_print_stats();
-    ptr[3] = (int*)mems_malloc(sizeof(int)*250);
-    mems_print_stats();
+    // printf("\n--------- Freeing up the memory [mems_free] --------\n");
+    // mems_free(ptr[3]);
+    // // mems_free(ptr[2]);
+    // mems_print_stats();
+    // // printf("Checker\n");
+    // printf("\n--------- Freeing up the memory [mems_] --------\n");
+    // mems_free(ptr[2]);
+    // mems_print_stats();
+    // ptr[3] = (int*)mems_malloc(sizeof(int)*250);
+    // mems_print_stats();
     return 0;
 }

@@ -241,19 +241,19 @@ void merge_holes(struct main_node* node) {
     struct sub_node* temp = node->sub_head;
     while (temp != NULL && temp->next != NULL) {
         if (temp->type == 0 && temp->next->type == 0) {
-            // Merge the two holes
             temp->size += temp->next->size;
             temp->next = temp->next->next;
 
             if (temp->next != NULL) {
                 temp->next->prev = temp;
+                temp->ending_address = temp->next->ending_address;
+            }
+            else {
+                temp->ending_address = temp->starting_address + temp->size - 1;
             }
 
             node->no_of_holes--;
-            temp->ending_address = temp->next->ending_address;
             munmap(temp->next, sizeof(struct sub_node));
-            
-            // Update the n of all the sub nodes after the deleted node
             struct sub_node* temp2 = temp->next;
             while (temp2 != NULL) {
                 temp2->n--;
@@ -289,3 +289,4 @@ void mems_free(void *v_ptr) {
     }
     printf("Error: The address is not in the MeMS system\n");
 }
+
