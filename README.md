@@ -9,10 +9,8 @@ MeMS is a custom memory management system implemented in C, designed to manage m
 
 - [Overview](#overview)
 - [Code Structure](#code-structure)
-- [Functions](#functions)
-- [Usage](#usage)
-- [About the Code](#about-the-code)
-- [License](#license)
+- [Features](#features)
+- [How to run](#how-to-run)
 
 ## Overview
 
